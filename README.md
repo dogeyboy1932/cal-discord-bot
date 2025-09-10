@@ -38,10 +38,12 @@ A Discord bot that forwards messages and images from Discord channels to a calen
    Edit `.env` with your configuration:
    ```env
    DISCORD_BOT_TOKEN=your_discord_bot_token_here
-   RECEIVER_URL=http://localhost:3000/api/receiver/image
+   RECEIVER_URL=https://your-calendar-app-domain.com/api/receiver/image
    IMAGE_RECEIVER_TOKEN=your_receiver_token_here
    ALLOWED_CHANNELS=  # Optional: comma-separated channel IDs
    ```
+   
+   **Important**: Replace `https://your-calendar-app-domain.com` with your actual calendar app URL.
 
 4. **Build and run**:
    ```bash
@@ -139,6 +141,36 @@ The bot can be deployed to any Node.js hosting service:
 - Use a process manager like PM2
 - Configure proper logging
 - Set up monitoring and health checks
+
+## Railway Deployment
+
+### Quick Deploy to Railway
+
+1. **Connect Repository**:
+   - Go to [Railway](https://railway.app)
+   - Create a new project
+   - Connect this GitHub repository
+
+2. **Set Environment Variables**:
+   In Railway dashboard, add these environment variables:
+   ```
+   DISCORD_BOT_TOKEN=your_discord_bot_token_here
+   RECEIVER_URL=https://your-calendar-app-domain.com/api/receiver/image
+   IMAGE_RECEIVER_TOKEN=your_receiver_token_here
+   ALLOWED_CHANNELS=  # Optional
+   ```
+
+3. **Important Configuration**:
+   - ⚠️ **RECEIVER_URL**: Must be your deployed calendar app URL, NOT localhost
+   - ✅ Railway will automatically detect Node.js and build the project
+   - ✅ The bot will start automatically after successful deployment
+
+### Environment Variable Setup
+
+**Critical**: The `RECEIVER_URL` must point to your deployed calendar application, not localhost. Examples:
+- ✅ `https://my-calendar-app.railway.app/api/receiver/image`
+- ✅ `https://calendar.mydomain.com/api/receiver/image`
+- ❌ `http://localhost:3000/api/receiver/image` (will fail in production)
 
 ## Troubleshooting
 
