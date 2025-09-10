@@ -22,11 +22,11 @@
   "dependencies": {
     "discord.js": "^14.16.3",
     "node-fetch": "^3.3.2",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "typescript": "^5.8.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
-    "typescript": "^5.8.3",
     "tsx": "^4.19.2",
     "rimraf": "^6.0.1"
   },
