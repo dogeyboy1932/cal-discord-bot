@@ -1,0 +1,44 @@
+{
+  "name": "cal-discord-bot",
+  "version": "1.0.0",
+  "description": "Discord bot that forwards messages and images to a calendar application receiver endpoint",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "clean": "rimraf dist"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "calendar",
+    "image-processing",
+    "typescript"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "node-fetch": "^3.3.2",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.8.3",
+    "tsx": "^4.19.2",
+    "rimraf": "^6.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dogeyboy1932/cal-discord-bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dogeyboy1932/cal-discord-bot/issues"
+  },
+  "homepage": "https://github.com/dogeyboy1932/cal-discord-bot#readme"
+}
