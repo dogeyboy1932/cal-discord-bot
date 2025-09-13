@@ -246,7 +246,7 @@ class DiscordBotService {
       }
 
       // Handle registration command
-      if (message.content.startsWith('!register ')) {
+      if (message.content.startsWith('!register')) {
         await this.handleRegistrationCommand(message);
         return;
       }
@@ -293,8 +293,13 @@ class DiscordBotService {
         return;
       }
 
-      // No attachments; if there's text content, forward it
+      // No attachments; if there's text content, forward it (but skip commands)
       if (message.content && message.content.trim().length > 0) {
+        // Skip forwarding if it's a command that we don't recognize
+        if (message.content.startsWith('!')) {
+          console.log('⚠️ [DISCORD] Unrecognized command, ignoring:', message.content);
+          return;
+        }
         console.log('📝 [DISCORD] Message has text content, forwarding...');
         await this.forwardText(message);
         // We intentionally do not reply to text to avoid noise; logging happens on the server
@@ -311,49 +316,54 @@ class DiscordBotService {
   private async handleRegistrationCommand(message: Message) {
     try {
       const content = message.content.trim();
-      const emailMatch = content.match(/^!register\s+([^\s]+@[^\s]+\.[^\s]+)$/i);
       
-      if (!emailMatch) {
-        await message.reply('❌ Invalid format. Use: `!register your.email@example.com`');
+      // Check if user provided any arguments (they shouldn't for OAuth flow)
+      if (content !== '!register') {
+        await message.reply('❌ Invalid format. Use: `!register` (no email needed - you\'ll authenticate with Google)');
         return;
       }
 
-      const email = emailMatch[1].toLowerCase();
       const discordId = message.author.id;
       const username = message.author.username;
       const discriminator = message.author.discriminator;
 
-      console.log(`📝 [DISCORD-REG] Registration attempt: ${discordId} -> ${email}`);
+      console.log(`🔐 [DISCORD-OAUTH] Starting OAuth registration for ${discordId}`);
 
-      // Call the registration API
+      // Call the OAuth initiation API
       const { RECEIVER_URL } = this.config;
-      const registrationUrl = RECEIVER_URL.replace('/api/receiver/image', '/api/discord/register');
+      const oauthInitUrl = RECEIVER_URL.replace('/api/receiver/image', '/api/auth/oauth/initiate');
       
-      const response = await fetch(registrationUrl, {
+      const response = await fetch(oauthInitUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           discordId,
-          email,
-          username,
-          discriminator
+          discordUsername: username
         })
       });
 
-      const result = await response.json() as RegistrationResponse;
+      const result = await response.json() as RegistrationResponse & { authUrl?: string };
 
-      if (response.ok && result.success) {
-        console.log(`✅ [DISCORD-REG] Registration successful for ${discordId}`);
-        await message.reply(`✅ Successfully registered! Your Discord account is now linked to **${email}**. You can now upload images and they will be saved to your calendar account.`);
+      if (response.ok && result.success && result.authUrl) {
+        console.log(`✅ [DISCORD-OAUTH] OAuth URL generated for ${discordId}`);
+        
+        await message.reply({
+          content: `🔐 **Google Authentication Required**\n\n` +
+                  `To securely link your Discord account with your Google email, please click the link below:\n\n` +
+                  `🔗 **[Authenticate with Google](${result.authUrl})**\n\n` +
+                  `⚠️ This link expires in 10 minutes for security.\n` +
+                  `✅ After authentication, you'll be able to upload images that will be saved to your calendar.`,
+          flags: ['SuppressEmbeds']
+        });
       } else {
-        console.error(`❌ [DISCORD-REG] Registration failed:`, result.error);
-        await message.reply(`❌ Registration failed: ${result.error || 'Unknown error'}`);
+        console.error(`❌ [DISCORD-OAUTH] OAuth initiation failed:`, result.error);
+        await message.reply(`❌ Authentication setup failed: ${result.error || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('❌ [DISCORD-REG] Registration command error:', error);
-      await message.reply('❌ Registration failed due to a technical error. Please try again later.');
+      console.error('❌ [DISCORD-OAUTH] Registration command error:', error);
+      await message.reply('❌ Authentication setup failed due to a technical error. Please try again later.');
     }
   }
 
