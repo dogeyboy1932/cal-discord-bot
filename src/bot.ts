@@ -35,9 +35,13 @@ class DiscordBotService {
   private isRunning = false;
 
   private get config() {
+    const receiverUrl = process.env.RECEIVER_URL || 'http://localhost:3000/api/receiver/image';
+    const calendarAppUrl = receiverUrl.replace('/api/receiver/image', '');
+    
     return {
       BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,
-      RECEIVER_URL: process.env.RECEIVER_URL || 'http://localhost:3000/api/receiver/image',
+      RECEIVER_URL: receiverUrl,
+      CALENDAR_APP_URL: calendarAppUrl,
       RECEIVER_TOKEN: process.env.IMAGE_RECEIVER_TOKEN || '',
       ALLOWED_CHANNELS: (process.env.ALLOWED_CHANNELS || '')
         .split(',')
@@ -257,6 +261,18 @@ class DiscordBotService {
         return;
       }
 
+      // Handle accounts list command
+      if (message.content === '!accounts') {
+        await this.handleAccountsCommand(message);
+        return;
+      }
+
+      // Handle account switch command
+      if (message.content.startsWith('!switch')) {
+        await this.handleSwitchCommand(message);
+        return;
+      }
+
       const { ALLOWED_CHANNELS } = this.config;
       
       // In guild channels, optionally restrict by ALLOWED_CHANNELS; always allow DMs
@@ -351,10 +367,15 @@ class DiscordBotService {
         
         await message.reply({
           content: `🔐 **Google Authentication Required**\n\n` +
-                  `To securely link your Discord account with your Google email, please click the link below:\n\n` +
+                  `To link your Discord account with a Google email, please click the link below:\n\n` +
                   `🔗 **[Authenticate with Google](${result.authUrl})**\n\n` +
+                  `📋 **Multi-Account Support:**\n` +
+                  `• If this is your first account, it will be set as active\n` +
+                  `• If you already have accounts, this will add a new one or refresh an existing one\n` +
+                  `• Use \`!accounts\` to see all your registered accounts\n` +
+                  `• Use \`!switch [number]\` to switch between accounts\n\n` +
                   `⚠️ This link expires in 10 minutes for security.\n` +
-                  `✅ After authentication, you'll be able to upload images that will be saved to your calendar.`,
+                  `✅ After authentication, you'll be able to upload images that will be saved to your active calendar account.`,
           flags: ['SuppressEmbeds']
         });
       } else {
@@ -391,20 +412,92 @@ class DiscordBotService {
     }
   }
 
+  private async handleAccountsCommand(message: Message): Promise<void> {
+    try {
+      const discordId = message.author.id;
+      const response = await fetch(`${this.config.CALENDAR_APP_URL}/api/discord/accounts?discordId=${discordId}`);
+      const data = await response.json() as any;
+
+      if (!data.success) {
+        await message.reply('❌ Failed to retrieve your accounts. Please try again later.');
+        return;
+      }
+
+      if (data.accounts.length === 0) {
+        await message.reply('📭 You have no Google accounts registered. Use `!register` to add your first account.');
+        return;
+      }
+
+      let accountsList = '📋 **Your Registered Google Accounts:**\n\n';
+      data.accounts.forEach((account: any) => {
+        const activeIndicator = account.isActive ? ' ✅ (Active)' : '';
+        accountsList += `**${account.accountNumber}.** ${account.email}${activeIndicator}\n`;
+        accountsList += `   Registered: ${new Date(account.registeredAt).toLocaleDateString()}\n\n`;
+      });
+
+      accountsList += `Total accounts: **${data.totalAccounts}**\n\n`;
+      accountsList += 'Use `!switch [number]` to switch between accounts.';
+
+      await message.reply(accountsList);
+    } catch (error) {
+      console.error('Error handling accounts command:', error);
+      await message.reply('❌ An error occurred while retrieving your accounts.');
+    }
+  }
+
+  private async handleSwitchCommand(message: Message): Promise<void> {
+    try {
+      const args = message.content.trim().split(/\s+/);
+      if (args.length !== 2) {
+        await message.reply('❌ Invalid format. Use: `!switch [account_number]`\n\nExample: `!switch 2`\n\nUse `!accounts` to see your registered accounts.');
+        return;
+      }
+
+      const accountNumber = parseInt(args[1]);
+      if (isNaN(accountNumber) || accountNumber < 1) {
+        await message.reply('❌ Please provide a valid account number. Use `!accounts` to see your registered accounts.');
+        return;
+      }
+
+      const discordId = message.author.id;
+      const switchUrl = `${this.config.CALENDAR_APP_URL}/api/discord/accounts`;
+      
+      const response = await fetch(switchUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          discordId,
+          accountNumber
+        })
+      });
+
+      const data = await response.json() as any;
+
+      if (data.success) {
+        await message.reply(`✅ **Account switched successfully!**\n\n📧 Active account: **${data.activeAccount.email}**\n\nAll future uploads will be saved to this account.`);
+      } else {
+        await message.reply(`❌ ${data.error || 'Failed to switch account. Please check the account number and try again.'}`);
+      }
+    } catch (error) {
+      console.error('Error handling switch command:', error);
+      await message.reply('❌ An error occurred while switching accounts.');
+    }
+  }
+
   private async getUserEmail(discordId: string): Promise<string | null> {
     try {
-      const { RECEIVER_URL } = this.config;
-      const statusUrl = RECEIVER_URL.replace('/api/receiver/image', '/api/discord/register') + `?discordId=${discordId}`;
+      const response = await fetch(`${this.config.CALENDAR_APP_URL}/api/discord/register?discordId=${discordId}`);
+      const data = await response.json() as any;
       
-      const response = await fetch(statusUrl);
-      const result = await response.json() as StatusResponse;
-
-      if (response.ok && result.success && result.registered && result.user?.email) {
-        return result.user.email;
+      if (data.success && data.registered && data.user && data.user.email) {
+        return data.user.email;
       }
+      
       return null;
     } catch (error) {
-      console.error('❌ [DISCORD] Error getting user email:', error);
+      console.error('Error getting user email:', error);
       return null;
     }
   }
